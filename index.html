@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>blot</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: #0b0b0b;
+            margin: 0;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+            touch-action: none;
+        }
+        #game {
+            width: 100%;
+            max-width: 450px;
+            height: 100dvh;
+            max-height: 850px;
+            margin: 0 auto;
+            padding: 10px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+        }
+        .best {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            color: #ddd;
+            font-size: 20px;
+            font-weight: 400;
+        }
+        .best-letter {
+            color: #ddd;
+            font-size: 18px;
+            font-weight: 300;
+        }
+        .trash {
+            background: none;
+            border: none;
+            padding: 6px 8px;
+            cursor: pointer;
+            opacity: 0.85;
+            transition: 0.15s;
+        }
+        .trash:active {
+            opacity: 1;
+            transform: scale(0.92);
+        }
+        .trash-icon {
+            width: 32px;
+            height: 34px;
+            background: #e0e0e0;
+            border-radius: 0 0 6px 6px;
+            position: relative;
+        }
+        .trash-icon::before {
+            content: '';
+            position: absolute;
+            width: 38px;
+            height: 8px;
+            background: #d0d0d0;
+            top: -8px;
+            left: -3px;
+            border-radius: 4px;
+        }
+        .trash-icon::after {
+            content: '';
+            position: absolute;
+            width: 3px;
+            height: 16px;
+            background: #111;
+            top: 6px;
+            left: 8px;
+            box-shadow: 8px 0 #111, 16px 0 #111;
+        }
+        .score-area {
+            text-align: center;
+            padding: 2px 0;
+        }
+        .score-label {
+            color: #777;
+            font-size: 15px;
+            letter-spacing: 2px;
+        }
+        .score-value {
+            color: #f0f0f0;
+            font-size: 54px;
+            font-weight: 600;
+            line-height: 1.1;
+        }
+        .gridcont {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 0;
+            margin: 4px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+            background: #181818;
+            padding: 10px;
+            border-radius: 20px;
+            box-shadow: 0 10px 0 #0a0a0a, inset 0 0 0 1px #2e2e2e;
+            width: 100%;
+            aspect-ratio: 6 / 6;
+            max-width: 400px;
+            position: relative;
+        }
+        .cell {
+            background: #222;
+            transition: 0.08s;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            border-radius: 0;
+            box-shadow: inset 0 0 0 1px #333;
+        }
+        .cell.filled {
+            box-shadow: inset 0 0 0 1px #444;
+        }
+        .picker {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 8px 4px 4px;
+        }
+        .piece {
+            flex: 0 0 auto;
+            width: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a1a;
+            padding: 12px 0;
+            border-radius: 16px;
+            box-shadow: 0 6px 0 #0e0e0e, inset 0 0 0 1px #333;
+            cursor: grab;
+            transition: 0.1s;
+            touch-action: none;
+        }
+        .piece:active {
+            cursor: grabbing;
+            background: #222;
+        }
+        .piecepreview {
+            display: grid;
+            gap: 3px;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .mini {
+            width: 22px;
+            height: 22px;
+            border-radius: 0;
+            box-shadow: inset 0 0 0 1px #444;
+        }
+        .dragged-piece {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.95;
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6));
+            display: grid;
+            gap: 4px;
+        }
+        .dragged-block {
+            aspect-ratio: 1 / 1;
+            border-radius: 0;
+            box-shadow: inset 0 0 0 1px #555;
+        }
+        .ghost-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .ghost-cell {
+            position: absolute;
+            border-radius: 0;
+            box-shadow: inset 0 0 0 2px #fff;
+            background: rgba(255,255,255,0.15);
+            transition: none;
+        }
+    </style>
+</head>
+<body>
+<div id="game">
+    <div class="top">
+        <div class="best">
+            <span class="best-letter">р</span>
+            <span id="bestDisplay">0</span>
+        </div>
+        <button class="trash" id="trashButton">
+            <div class="trash-icon"></div>
+        </button>
+    </div>
+    
+    <div class="score-area">
+        <div class="score-label">счёт</div>
+        <div class="score-value" id="scoreDisplay">0</div>
+    </div>
+    
+    <div class="gridcont">
+        <div class="grid" id="gridContainer"></div>
+    </div>
+    
+    <div class="picker" id="piecePicker"></div>
+</div>
+
+<script>
+    (function() {
+        const ROWS = 6;
+        const COLS = 6;
+        let grid = [];
+        let score = 0;
+        let best = 0;
+        let currentPieces = [];
+        
+        const scoreEl = document.getElementById('scoreDisplay');
+        const bestEl = document.getElementById('bestDisplay');
+        const gridEl = document.getElementById('gridContainer');
+        const pickerEl = document.getElementById('piecePicker');
+        const trashBtn = document.getElementById('trashButton');
+        const STORAGE_KEY = 'blot_save_v12';
+        
+        const COLORS = [
+            '#f0f0f0', '#5db0e0', '#5dbf5d', '#e09f5d', 
+            '#a06ddb', '#db6d6d', '#5ddbad', '#dbad5d',
+            '#db6d9e', '#5d9edb', '#8edb5d', '#db9f5d'
+        ];
+        
+        let draggedElement = null;
+        let ghostContainer = null;
+        let currentDragPiece = null;
+        let currentDragIndex = -1;
+        let isDragging = false;
+        let cellSize = 0;
+        let padding = 10;
+        let gap = 4;
+
+        function loadBest() {
+            try {
+                const saved = localStorage.getItem('blot_best_v12');
+                if (saved) best = parseInt(saved, 10) || 0;
+            } catch(e) { best = 0; }
+            bestEl.textContent = best;
+        }
+
+        function saveBest() {
+            if (score > best) {
+                best = score;
+                bestEl.textContent = best;
+                try { localStorage.setItem('blot_best_v12', best); } catch(e) {}
+            }
+        }
+
+        function updateScoreUI() { 
+            scoreEl.textContent = score; 
+            saveBest();
+        }
+        
+        function addScore(points) { 
+            score += points; 
+            updateScoreUI(); 
+        }
+        
+        function resetScore() { 
+            score = 0; 
+            updateScoreUI(); 
+        }
+
+        function createEmptyGrid() {
+            return Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        }
+
+        function renderGrid() {
+            gridEl.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (grid[r][c]) {
+                        cell.classList.add('filled');
+                        cell.style.background = grid[r][c];
+                    }
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    gridEl.appendChild(cell);
+                }
+            }
+            updateCellSize();
+        }
+
+        function updateCellSize() {
+            const gridRect = gridEl.getBoundingClientRect();
+            cellSize = (gridRect.width - padding * 2 - gap * (COLS - 1)) / COLS;
+        }
+
+        function canPlacePiece(piece, startRow, startCol) {
+            for (let i = 0; i < piece.shape.length; i++) {
+                for (let j = 0; j < piece.shape[0].length; j++) {
+                    if (piece.shape[i][j]) {
+                        const r = startRow + i;
+                        const c = startCol + j;
+                        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+                        if (grid[r][c]) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function placePiece(piece, startRow, startCol) {
+            for (let i = 0; i < piece.shape.length; i++) {
+                for (let j = 0; j < piece.shape[0].length; j++) {
+                    if (piece.shape[i][j]) {
+                        const r = startRow + i;
+                        const c = startCol + j;
+                        grid[r][c] = piece.color;
+                    }
+                }
+            }
+        }
+
+        function checkAndClearFull() {
+            let rowsCleared = 0, colsCleared = 0;
+            
+            for (let r = 0; r < ROWS; r++) {
+                if (grid[r].every(cell => cell !== 0)) {
+                    for (let c = 0; c < COLS; c++) grid[r][c] = 0;
+                    rowsCleared++;
+                }
+            }
+            
+            for (let c = 0; c < COLS; c++) {
+                let full = true;
+                for (let r = 0; r < ROWS; r++) {
+                    if (grid[r][c] === 0) { full = false; break; }
+                }
+                if (full) {
+                    for (let r = 0; r < ROWS; r++) grid[r][c] = 0;
+                    colsCleared++;
+                }
+            }
+            
+            const totalCleared = rowsCleared + colsCleared;
+            if (totalCleared > 0) {
+                let bonus = totalCleared;
+                if (totalCleared >= 4) bonus = totalCleared * 4;
+                else if (totalCleared === 3) bonus = totalCleared * 3;
+                else if (totalCleared === 2) bonus = totalCleared * 2;
+                
+                addScore(bonus * 5);
+                renderGrid();
+                saveGame();
+            }
+        }
+
+        function generateRandomPiece() {
+            const shapes = [
+                [[1]], [[1, 1]], [[1], [1]],
+                [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 0], [1, 1]],
+                [[0, 1], [1, 1]], [[1, 1, 1]], [[1], [1], [1]],
+                [[1, 1], [1, 1]], [[1, 0, 0], [1, 1, 1]], [[0, 0, 1], [1, 1, 1]]
+            ];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            const blockCount = shape.flat().filter(v => v).length;
+            const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+            return { shape, score: blockCount * 2, color };
+        }
+
+        function generateThreePieces() {
+            const pieces = [];
+            for (let i = 0; i < 3; i++) pieces.push(generateRandomPiece());
+            return pieces;
+        }
+
+        function refillPieces() { currentPieces = generateThreePieces(); }
+
+        function renderPicker() {
+            pickerEl.innerHTML = '';
+            currentPieces.forEach((piece, idx) => {
+                const div = document.createElement('div');
+                div.className = 'piece';
+                div.setAttribute('data-index', idx);
+                
+                const preview = document.createElement('div');
+                preview.className = 'piecepreview';
+                const shape = piece.shape;
+                preview.style.gridTemplateColumns = `repeat(${shape[0].length}, 22px)`;
+                preview.style.gap = '3px';
+                
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[0].length; c++) {
+                        const mini = document.createElement('div');
+                        mini.className = 'mini';
+                        if (shape[r][c]) {
+                            mini.style.background = piece.color;
+                        } else {
+                            mini.style.background = 'transparent';
+                            mini.style.boxShadow = 'none';
+                        }
+                        preview.appendChild(mini);
+                    }
+                }
+                
+                div.appendChild(preview);
+                
+                const startDrag = (e) => {
+                    e.preventDefault();
+                    if (isDragging) return;
+                    
+                    const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+                    const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+                    
+                    currentDragPiece = piece;
+                    currentDragIndex = idx;
+                    isDragging = true;
+                    
+                    div.style.opacity = '0.4';
+                    
+                    updateCellSize();
+                    createDraggedElement(piece, clientX, clientY);
+                    createGhostOverlay();
+                    
+                    const onMove = (moveEvent) => {
+                        moveEvent.preventDefault();
+                        const moveX = moveEvent.clientX || (moveEvent.touches ? moveEvent.touches[0].clientX : 0);
+                        const moveY = moveEvent.clientY || (moveEvent.touches ? moveEvent.touches[0].clientY : 0);
+                        
+                        if (draggedElement) {
+                            const rect = draggedElement.getBoundingClientRect();
+                            draggedElement.style.left = (moveX - rect.width / 2) + 'px';
+                            draggedElement.style.top = (moveY - rect.height / 2) + 'px';
+                        }
+                        
+                        updateGhostPosition(moveX, moveY);
+                    };
+                    
+                    const onEnd = (endEvent) => {
+                        endEvent.preventDefault();
+                        isDragging = false;
+                        div.style.opacity = '1';
+                        
+                        if (ghostContainer) {
+                            const row = parseInt(ghostContainer.dataset.row);
+                            const col = parseInt(ghostContainer.dataset.col);
+                            
+                            if (!isNaN(row) && !isNaN(col) && canPlacePiece(currentDragPiece, row, col)) {
+                                placePiece(currentDragPiece, row, col);
+                                currentPieces.splice(currentDragIndex, 1);
+                                addScore(currentDragPiece.score);
+                                
+                                if (currentPieces.length === 0) refillPieces();
+                                
+                                renderGrid();
+                                renderPicker();
+                                saveGame();
+                                checkAndClearFull();
+                            }
+                            
+                            ghostContainer.remove();
+                            ghostContainer = null;
+                        }
+                        
+                        if (draggedElement) {
+                            draggedElement.style.transition = 'opacity 0.15s';
+                            draggedElement.style.opacity = '0';
+                            setTimeout(() => {
+                                if (draggedElement) draggedElement.remove();
+                                draggedElement = null;
+                            }, 150);
+                        }
+                        
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onEnd);
+                        document.removeEventListener('touchmove', onMove);
+                        document.removeEventListener('touchend', onEnd);
+                        
+                        currentDragPiece = null;
+                        currentDragIndex = -1;
+                    };
+                    
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onEnd);
+                    document.addEventListener('touchmove', onMove, { passive: false });
+                    document.addEventListener('touchend', onEnd);
+                };
+                
+                div.addEventListener('mousedown', startDrag);
+                div.addEventListener('touchstart', startDrag, { passive: false });
+                
+                pickerEl.appendChild(div);
+            });
+        }
+
+        function createDraggedElement(piece, clientX, clientY) {
+            if (draggedElement) draggedElement.remove();
+            
+            draggedElement = document.createElement('div');
+            draggedElement.className = 'dragged-piece';
+            
+            const shape = piece.shape;
+            draggedElement.style.gridTemplateColumns = `repeat(${shape[0].length}, ${cellSize}px)`;
+            draggedElement.style.gap = gap + 'px';
+            
+            for (let r = 0; r < shape.length; r++) {
+                for (let c = 0; c < shape[0].length; c++) {
+                    const block = document.createElement('div');
+                    block.className = 'dragged-block';
+                    block.style.width = cellSize + 'px';
+                    block.style.height = cellSize + 'px';
+                    if (shape[r][c]) {
+                        block.style.background = piece.color;
+                    } else {
+                        block.style.background = 'transparent';
+                        block.style.boxShadow = 'none';
+                    }
+                    draggedElement.appendChild(block);
+                }
+            }
+            
+            document.body.appendChild(draggedElement);
+            
+            const rect = draggedElement.getBoundingClientRect();
+            draggedElement.style.left = (clientX - rect.width / 2) + 'px';
+            draggedElement.style.top = (clientY - rect.height / 2) + 'px';
+        }
+
+        function createGhostOverlay() {
+            if (ghostContainer) ghostContainer.remove();
+            
+            ghostContainer = document.createElement('div');
+            ghostContainer.className = 'ghost-overlay';
+            ghostContainer.dataset.row = '0';
+            ghostContainer.dataset.col = '0';
+            
+            gridEl.style.position = 'relative';
+            gridEl.appendChild(ghostContainer);
+        }
+
+        function updateGhostPosition(clientX, clientY) {
+            if (!ghostContainer || !currentDragPiece) return;
+            
+            const gridRect = gridEl.getBoundingClientRect();
+            
+            if (clientX >= gridRect.left + padding && clientX <= gridRect.right - padding &&
+                clientY >= gridRect.top + padding && clientY <= gridRect.bottom - padding) {
+                
+                const relX = clientX - gridRect.left - padding;
+                const relY = clientY - gridRect.top - padding;
+                
+                const totalCellSize = cellSize + gap;
+                const pieceWidth = currentDragPiece.shape[0].length;
+                const pieceHeight = currentDragPiece.shape.length;
+                
+                const piecePixelWidth = pieceWidth * totalCellSize - gap;
+                const piecePixelHeight = pieceHeight * totalCellSize - gap;
+                
+                const pieceLeft = relX - piecePixelWidth / 2;
+                const pieceTop = relY - piecePixelHeight / 2;
+                
+                let maxOverlap = 0;
+                let bestCol = 0;
+                let bestRow = 0;
+                
+                for (let r = 0; r <= ROWS - pieceHeight; r++) {
+                    for (let c = 0; c <= COLS - pieceWidth; c++) {
+                        if (!canPlacePiece(currentDragPiece, r, c)) continue;
+                        
+                        const cellLeft = c * totalCellSize;
+                        const cellTop = r * totalCellSize;
+                        const cellRight = cellLeft + piecePixelWidth;
+                        const cellBottom = cellTop + piecePixelHeight;
+                        
+                        const overlapLeft = Math.max(pieceLeft, cellLeft);
+                        const overlapTop = Math.max(pieceTop, cellTop);
+                        const overlapRight = Math.min(pieceLeft + piecePixelWidth, cellRight);
+                        const overlapBottom = Math.min(pieceTop + piecePixelHeight, cellBottom);
+                        
+                        if (overlapLeft < overlapRight && overlapTop < overlapBottom) {
+                            const overlapArea = (overlapRight - overlapLeft) * (overlapBottom - overlapTop);
+                            if (overlapArea > maxOverlap) {
+                                maxOverlap = overlapArea;
+                                bestCol = c;
+                                bestRow = r;
+                            }
+                        }
+                    }
+                }
+                
+                if (maxOverlap === 0) {
+                    bestCol = Math.floor(relX / totalCellSize);
+                    bestRow = Math.floor(relY / totalCellSize);
+                    bestCol = Math.max(0, Math.min(COLS - pieceWidth, bestCol));
+                    bestRow = Math.max(0, Math.min(ROWS - pieceHeight, bestRow));
+                }
+                
+                ghostContainer.innerHTML = '';
+                
+                const shape = currentDragPiece.shape;
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[0].length; c++) {
+                        if (shape[r][c]) {
+                            const ghostCell = document.createElement('div');
+                            ghostCell.className = 'ghost-cell';
+                            
+                            const left = padding + (bestCol + c) * totalCellSize;
+                            const top = padding + (bestRow + r) * totalCellSize;
+                            
+                            ghostCell.style.left = left + 'px';
+                            ghostCell.style.top = top + 'px';
+                            ghostCell.style.width = cellSize + 'px';
+                            ghostCell.style.height = cellSize + 'px';
+                            
+                            ghostContainer.appendChild(ghostCell);
+                        }
+                    }
+                }
+                
+                ghostContainer.dataset.row = bestRow;
+                ghostContainer.dataset.col = bestCol;
+            } else {
+                ghostContainer.innerHTML = '';
+            }
+        }
+
+        function clearAllAndResetScore() {
+            grid = createEmptyGrid();
+            resetScore();
+            renderGrid();
+            refillPieces();
+            renderPicker();
+            saveGame();
+        }
+
+        function saveGame() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid, score, pieces: currentPieces }));
+            } catch(e) {}
+        }
+
+        function loadGame() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return false;
+                const state = JSON.parse(raw);
+                grid = state.grid || createEmptyGrid();
+                score = state.score || 0;
+                currentPieces = state.pieces || generateThreePieces();
+                updateScoreUI();
+                renderGrid();
+                renderPicker();
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        trashBtn.addEventListener('click', clearAllAndResetScore);
+
+        loadBest();
+        if (!loadGame()) {
+            grid = createEmptyGrid();
+            score = 0;
+            refillPieces();
+            updateScoreUI();
+            renderGrid();
+            renderPicker();
+        }
+
+        window.addEventListener('resize', () => {
+            updateCellSize();
+        });
+
+        window.addEventListener('beforeunload', saveGame);
+    })();
+</script>
+</body>
+          </html>
